@@ -9,51 +9,37 @@
 </head>
 <body>
 
-    <!-- Login, Create Password, User Attendance Containers -->
+    <!-- All Page Containers -->
     <div id="login-container" class="container">
         <img src="logo.png" alt="Zasya Company Logo" class="logo">
         <h2>Zasya Attendance</h2>
         <form id="login-form">
-            <div class="form-group">
-                <label for="username">Name (or Email):</label>
-                <input type="text" id="username" name="username" required>
-            </div>
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" placeholder="Leave blank if first time">
-            </div>
-            <div class="form-footer">
-                <a href="#" id="forgot-password-link">Forgot Password?</a>
-            </div>
-            <p id="login-error" class="error-message"></p>
-            <button type="submit">Login</button>
+            <div class="form-group"><label for="username">Name (or Email):</label><input type="text" id="username" name="username" required></div>
+            <div class="form-group"><label for="password">Password:</label><input type="password" id="password" name="password" placeholder="Leave blank if first time"></div>
+            <div class="form-footer"><a href="#" id="forgot-password-link">Forgot Password?</a></div>
+            <p id="login-error" class="error-message"></p><button type="submit">Login</button>
         </form>
     </div>
+    
     <div id="create-password-container" class="container" style="display:none;">
         <img src="logo.png" alt="Zasya Company Logo" class="logo">
         <h2>Welcome, <span id="new-user-name"></span>!</h2>
         <p>Your email for login will be <strong id="user-email-display"></strong></p>
         <p>Please create your password to continue.</p>
         <form id="create-password-form">
-            <div class="form-group">
-                <label for="new-password">New Password:</label>
-                <input type="password" id="new-password" required>
-            </div>
-            <div class="form-group">
-                <label for="confirm-password">Confirm Password:</label>
-                <input type="password" id="confirm-password" required>
-            </div>
-            <p id="create-password-error" class="error-message"></p>
-            <button type="submit">Set Password and Login</button>
+            <div class="form-group"><label for="new-password">New Password:</label><input type="password" id="new-password" required></div>
+            <div class="form-group"><label for="confirm-password">Confirm Password:</label><input type="password" id="confirm-password" required></div>
+            <p id="create-password-error" class="error-message"></p><button type="submit">Set Password and Login</button>
         </form>
     </div>
+    
     <div id="attendance-container" class="container" style="display:none;">
+        <div id="session-timer-display-user" class="session-timer"></div>
         <img src="logo.png" alt="Zasya Company Logo" class="logo-small">
         <button id="logout-btn" class="logout-button">Logout</button>
         <h1>Welcome to Zasya Attendance</h1>
         <p>Logged in as: <strong id="display-username"></strong></p>
-        <p id="current-date" class="date-display"></p>
-        <hr>
+        <p id="current-date" class="date-display"></p><hr>
         <h2>Mark Today's Attendance</h2>
         <div class="button-group">
             <button id="present-btn">Mark Present</button>
@@ -63,31 +49,25 @@
         <p id="status-message"></p>
     </div>
 
-    <!-- Admin Panel Container -->
     <div id="admin-panel-container" class="container admin-panel" style="display:none;">
+        <div id="session-timer-display-admin" class="session-timer"></div>
         <img src="logo.png" alt="Zasya Company Logo" class="logo-small">
         <button id="admin-logout-btn" class="logout-button">Logout</button>
         <h2>Admin Dashboard</h2>
-        
         <div class="admin-sections">
             <div class="admin-section-left">
                 <h3 class="section-title">Pending Leave Requests</h3>
                 <div id="leave-requests-section" class="table-wrapper">
                     <table id="leave-requests-table">
-                        <thead>
-                            <tr><th>Date</th><th>Name</th><th>Reason</th><th>Action</th></tr>
-                        </thead>
+                        <thead><tr><th>Date</th><th>Name</th><th>Reason</th><th>Action</th></tr></thead>
                         <tbody id="leave-requests-body"></tbody>
                     </table>
                 </div>
-
                 <h3 class="section-title">Monthly Attendance Summary</h3>
                 <p>(Click a row for details)</p>
                 <div class="table-wrapper">
                     <table>
-                        <thead>
-                            <tr><th>Name</th><th>Role</th><th>Working Days</th><th>Attended</th><th>Missed</th><th>Leaves Taken</th><th>Leaves Left</th></tr>
-                        </thead>
+                        <thead><tr><th>Name</th><th>Role</th><th>Working Days</th><th>Attended</th><th>Missed</th><th>Leaves Taken</th><th>Leaves Left</th></tr></thead>
                         <tbody id="dashboard-body"></tbody>
                     </table>
                 </div>
@@ -95,14 +75,16 @@
             <div class="admin-section-right">
                 <h3 class="section-title">Quick Stats (Today)</h3>
                 <div id="today-stats" class="stats-box">
-                    <h4>On Leave Today</h4>
+                    <h4>On Leave Today (<span id="on-leave-count">0</span>)</h4>
                     <ul id="on-leave-today-list"><li>None</li></ul>
                 </div>
-                
-                <h3 class="section-title">Leave Leaders (Yearly)</h3>
+                <h3 class="section-title">Leave Leaders</h3>
                 <div id="leader-stats" class="stats-box">
-                    <h4>Most Leaves Taken</h4>
-                    <ol id="most-leaves-list"></ol>
+                    <h4>Most Leaves (This Month)</h4>
+                    <ol id="most-leaves-month-list"></ol>
+                    <hr class="stats-divider">
+                    <h4>Most Leaves (This Year)</h4>
+                    <ol id="most-leaves-year-list"></ol>
                 </div>
             </div>
         </div>
@@ -110,43 +92,16 @@
 
     <!-- Modals -->
     <div id="attendance-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <span class="modal-close">&times;</span>
-            <h3 id="modal-title">Attendance Details</h3>
-            <div id="modal-calendar" class="calendar-grid"></div>
-            <div class="calendar-legend">
-                <span class="legend-item present">Present</span><span class="legend-item absent">Absent/Leave</span><span class="legend-item unmarked">Unmarked</span><span class="legend-item holiday">Holiday/Sunday</span>
-            </div>
-        </div>
+        <div class="modal-content"><span class="modal-close">&times;</span><h3 id="modal-title">Attendance Details</h3><div id="modal-calendar" class="calendar-grid"></div><div class="calendar-legend"><span class="legend-item present">Present</span><span class="legend-item absent">Absent/Leave</span><span class="legend-item unmarked">Unmarked</span><span class="legend-item holiday">Holiday/Sunday</span></div></div>
     </div>
     <div id="forgot-password-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <span class="modal-close">&times;</span><h3>Reset Password</h3>
-            <form id="forgot-password-form">
-                <div class="form-group"><label for="reset-email">Email:</label><input type="email" id="reset-email" required></div>
-                <p id="reset-message" class="reset-message"></p><button type="submit">Send Reset Link</button>
-            </form>
-        </div>
+        <div class="modal-content"><span class="modal-close">&times;</span><h3>Reset Password</h3><form id="forgot-password-form"><div class="form-group"><label for="reset-email">Email:</label><input type="email" id="reset-email" required></div><p id="reset-message" class="reset-message"></p><button type="submit">Send Reset Link</button></form></div>
     </div>
     <div id="leave-request-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <span class="modal-close">&times;</span><h3>Apply for Leave</h3>
-            <form id="leave-request-form">
-                <div class="form-group"><label for="leave-date">Select Date:</label><input type="date" id="leave-date" required></div>
-                <div class="form-group"><label for="leave-reason">Reason:</label><textarea id="leave-reason" rows="3" placeholder="e.g., Personal work, Sick leave"></textarea></div>
-                <p id="leave-request-message" class="reset-message"></p><button type="submit">Submit Request</button>
-            </form>
-        </div>
+        <div class="modal-content"><span class="modal-close">&times;</span><h3>Apply for Leave</h3><form id="leave-request-form"><div class="form-group"><label for="leave-date">Select Date:</label><input type="date" id="leave-date" required></div><div class="form-group"><label for="leave-reason">Reason:</label><textarea id="leave-reason" rows="3" placeholder="e.g., Personal work, Sick leave"></textarea></div><p id="leave-request-message" class="reset-message"></p><button type="submit">Submit Request</button></form></div>
     </div>
     <div id="admin-attendance-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <h3>Mark Your Attendance</h3>
-            <p>Please mark your attendance for today before viewing the dashboard.</p>
-            <div class="button-group">
-                <button id="admin-present-btn">Mark Present</button>
-                <button id="admin-absent-btn" class="secondary-btn">Mark Absent</button>
-            </div>
-        </div>
+        <div class="modal-content"><h3>Mark Your Attendance</h3><p>Please mark your attendance for today before viewing the dashboard.</p><div class="button-group"><button id="admin-present-btn">Mark Present</button><button id="admin-absent-btn" class="secondary-btn">Mark Absent</button></div></div>
     </div>
 
     <!-- Firebase SDK Scripts -->
