@@ -1,14 +1,16 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- PASTE YOUR FIREBASE CONFIGURATION OBJECT HERE ---
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
     const firebaseConfig = {
-      apiKey: "PASTE_YOUR_API_KEY_HERE",
-      authDomain: "PASTE_YOUR_AUTH_DOMAIN_HERE",
-      projectId: "PASTE_YOUR_PROJECT_ID_HERE",
-      storageBucket: "PASTE_YOUR_STORAGE_BUCKET_HERE",
-      messagingSenderId: "PASTE_YOUR_SENDER_ID_HERE",
-      appId: "PASTE_YOUR_APP_ID_HERE"
-    };
+    apiKey: "AIzaSyBUA2TgF-R61y65hYkc1iGl98XkJjn92zs",
+    authDomain: "zasya-attendance-app.firebaseapp.com",
+    projectId: "zasya-attendance-app",
+    storageBucket: "zasya-attendance-app.firebasestorage.app",
+    messagingSenderId: "120093727111",
+    appId: "1:120093727111:web:9d4f4be7039ffe3bf15b22",
+    measurementId: "G-CCZ025JE5C"
+};
 
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
