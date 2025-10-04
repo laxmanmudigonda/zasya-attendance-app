@@ -1,29 +1,44 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- PASTE YOUR FIREBASE CONFIGURATION OBJECT HERE ---
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
     const firebaseConfig = {
-      apiKey: "PASTE_YOUR_API_KEY_HERE",
-      authDomain: "PASTE_YOUR_AUTH_DOMAIN_HERE",
-      projectId: "PASTE_YOUR_PROJECT_ID_HERE",
-      storageBucket: "PASTE_YOUR_STORAGE_BUCKET_HERE",
-      messagingSenderId: "PASTE_YOUR_SENDER_ID_HERE",
-      appId: "PASTE_YOUR_APP_ID_HERE"
-    };
+    apiKey: "AIzaSyBUA2TgF-R61y65hYkc1iGl98XkJjn92zs",
+    authDomain: "zasya-attendance-app.firebaseapp.com",
+    projectId: "zasya-attendance-app",
+    storageBucket: "zasya-attendance-app.firebasestorage.app",
+    messagingSenderId: "120093727111",
+    appId: "1:120093727111:web:9d4f4be7039ffe3bf15b22",
+    measurementId: "G-CCZ025JE5C"
+};
 
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.firestore();
 
     const adminUser = { name: "Varaprasad Mudigonda", role: "CEO" };
-    // ... (Employee and Intern lists are the same)
+    const validEmployees = ["Divyansh Kushwah", "Manish Nimkhede", "Nikhil Khiyani", "Nikhil Patil", "Sawari Maheswari", "Suhas Ambeti", "Laxman Mudigonda"];
+    const validInterns = ["Yashweer Potelu", "Akshith Varma", "Hari krishna", "Keerthan Modem", "Mithil Pollipalli", "Aryan Mansuke", "Vaishak Kundhavan", "Anuj Arya"];
     const yearlyPaidLeaves = 8;
     const nationalHolidays = ["01-01", "01-26", "08-15", "10-02"];
     const SESSION_DURATION = 10 * 60 * 1000; // 10 minutes
 
     const allUI = document.querySelectorAll('.container, .modal-overlay');
+    const loginContainer = document.getElementById('login-container');
+    const createPasswordContainer = document.getElementById('create-password-container');
+    const attendanceContainer = document.getElementById('attendance-container');
+    const adminPanelContainer = document.getElementById('admin-panel-container');
+    const adminAttendanceModal = document.getElementById('admin-attendance-modal');
+    const attendanceModal = document.getElementById('attendance-modal');
+    const forgotPasswordModal = document.getElementById('forgot-password-modal');
+    const leaveRequestModal = document.getElementById('leave-request-modal');
+    const loginForm = document.getElementById('login-form');
+    const createPasswordForm = document.getElementById('create-password-form');
+    const forgotPasswordForm = document.getElementById('forgot-password-form');
+    const leaveRequestForm = document.getElementById('leave-request-form');
     const timerDisplayUser = document.getElementById('session-timer-display-user');
     const timerDisplayAdmin = document.getElementById('session-timer-display-admin');
-    
+
     let currentUser = null; 
     let sessionIntervalId = null;
 
@@ -40,7 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (remaining <= 0) {
                 clearInterval(sessionIntervalId);
                 auth.signOut();
-                // No alert needed, as onAuthStateChanged handles the UI switch
                 return;
             }
             const minutes = Math.floor((remaining / 1000) / 60);
@@ -53,11 +67,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const resetSessionTimer = () => { if (currentUser) startSessionTimer(); };
     ['click', 'keypress', 'scroll', 'mousemove'].forEach(event => document.addEventListener(event, resetSessionTimer));
 
+    // --- PAGE DISPLAY FUNCTIONS (DEFINED EARLY TO PREVENT ERRORS) ---
+    function showLoginPage() {
+        allUI.forEach(el => el.style.display = 'none');
+        loginContainer.style.display = 'block';
+        loginForm.reset();
+    }
+    
+    function showAttendancePage(name) {
+        allUI.forEach(el => el.style.display = 'none');
+        attendanceContainer.style.display = 'block';
+        document.getElementById('display-username').textContent = name;
+        document.getElementById('status-message').textContent = '';
+        const today = new Date();
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        document.getElementById('current-date').textContent = today.toLocaleDateString('en-US', options);
+    }
+
+    function showAdminPanel() {
+        allUI.forEach(el => el.style.display = 'none');
+        adminPanelContainer.style.display = 'block';
+        generateDashboard();
+        loadLeaveRequests();
+        generateQuickStats();
+    }
+
+    function showAdminAttendancePrompt() {
+        allUI.forEach(el => el.style.display = 'none');
+        adminAttendanceModal.style.display = 'flex';
+    }
+
     // --- AUTHENTICATION & ROUTING ---
     auth.onAuthStateChanged(async user => {
         if (user) {
             currentUser = user;
-            startSessionTimer(); // Start timer on login
+            startSessionTimer();
             const userDoc = await db.collection('users').doc(user.uid).get();
             if (userDoc.exists) {
                 const userData = userDoc.data();
@@ -78,23 +122,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // --- ADMIN ATTENDANCE PROMPT ---
-    function showAdminAttendancePrompt() {
-        allUI.forEach(el => el.style.display = 'none');
-        document.getElementById('admin-attendance-modal').style.display = 'flex';
-    }
+    // --- ADMIN ATTENDANCE PROMPT BUTTONS ---
     document.getElementById('admin-present-btn').addEventListener('click', async () => {
         await markAttendance("Present");
-        document.getElementById('admin-attendance-modal').style.display = 'none';
+        adminAttendanceModal.style.display = 'none';
         showAdminPanel();
     });
     document.getElementById('admin-absent-btn').addEventListener('click', async () => {
         await markAttendance("Absent");
-        document.getElementById('admin-attendance-modal').style.display = 'none';
+        adminAttendanceModal.style.display = 'none';
         showAdminPanel();
     });
     
-    // --- ATTENDANCE MARKING (UPDATED) ---
+    // --- ATTENDANCE MARKING ---
     async function markAttendance(status) {
         if (!currentUser) return;
         const today = new Date();
@@ -103,7 +143,6 @@ document.addEventListener('DOMContentLoaded', () => {
             status: status,
             time: today.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) 
         };
-        
         const userRef = db.collection('users').doc(currentUser.uid);
         try {
             await userRef.set({ attendance: { [formattedDate]: attendanceRecord } }, { merge: true });
@@ -117,23 +156,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('present-btn').addEventListener('click', () => markAttendance("Present"));
     document.getElementById('absent-btn').addEventListener('click', () => markAttendance("Absent"));
 
-    // --- ADMIN PANEL & STATS (UPDATED) ---
-    function showAdminPanel() {
-        allUI.forEach(el => el.style.display = 'none');
-        document.getElementById('admin-panel-container').style.display = 'block';
-        generateDashboard();
-        loadLeaveRequests();
-        generateQuickStats();
-    }
-    
+    // --- ADMIN PANEL STATS ---
     async function generateQuickStats() {
         const onLeaveList = document.getElementById('on-leave-today-list');
         const onLeaveCount = document.getElementById('on-leave-count');
         const mostLeavesMonthList = document.getElementById('most-leaves-month-list');
         const mostLeavesYearList = document.getElementById('most-leaves-year-list');
         onLeaveList.innerHTML = '<li>Loading...</li>';
-        mostLeavesMonthList.innerHTML = '';
-        mostLeavesYearList.innerHTML = '';
+        mostLeavesMonthList.innerHTML = '<li>Loading...</li>';
+        mostLeavesYearList.innerHTML = '<li>Loading...</li>';
 
         const allUsersSnapshot = await db.collection('users').get();
         let allUsersData = [];
@@ -150,8 +181,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return { name: user.name, month: stats.leavesTakenThisMonth, year: stats.leavesTakenThisYear };
         }));
         
-        // Yearly Leaders
         leaveCounts.sort((a, b) => b.year - a.year);
+        mostLeavesYearList.innerHTML = '';
         leaveCounts.slice(0, 5).forEach(user => {
             if (user.year > 0) {
                 const li = document.createElement('li');
@@ -161,8 +192,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (mostLeavesYearList.children.length === 0) mostLeavesYearList.innerHTML = '<li>No leaves taken yet.</li>';
 
-        // Monthly Leaders
         leaveCounts.sort((a, b) => b.month - a.month);
+        mostLeavesMonthList.innerHTML = '';
         leaveCounts.slice(0, 5).forEach(user => {
             if (user.month > 0) {
                 const li = document.createElement('li');
@@ -182,27 +213,20 @@ document.addEventListener('DOMContentLoaded', () => {
         
         for (let day = 1; day <= today.getDate(); day++) {
             const date = new Date(currentYear, currentMonth, day);
-            const dayOfWeek = date.getDay();
-            const formattedDateMMDD = `${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            if (dayOfWeek !== 0 && !nationalHolidays.includes(formattedDateMMDD)) {
+            if (date.getDay() !== 0 && !nationalHolidays.includes(`${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`)) {
                 workingDaysThisMonth++;
-                const formattedDateYYYYMMDD = getFormattedDate(date);
-                if (attendance[formattedDateYYYYMMDD]?.status === 'Present') {
-                    daysAttended++;
-                } else if (!attendance[formattedDateYYYYMMDD]) {
-                    daysMissed++;
-                }
+                const formattedDate = getFormattedDate(date);
+                if (attendance[formattedDate]?.status === 'Present') daysAttended++;
+                else if (!attendance[formattedDate]) daysMissed++;
             }
         }
         
         Object.keys(attendance).forEach(dateStr => {
             const recordDate = new Date(dateStr);
             if (attendance[dateStr]?.status === 'Absent') {
-                const dayOfWeek = recordDate.getDay();
-                const formattedDateMMDD = dateStr.substring(5);
-                if(dayOfWeek !== 0 && !nationalHolidays.includes(formattedDateMMDD)){
+                if(recordDate.getDay() !== 0 && !nationalHolidays.includes(dateStr.substring(5))){
                     if (recordDate.getFullYear() === currentYear) leavesTakenThisYear++;
-                    if (recordDate.getFullYear() === currentYear && recordDate.getMonth() === currentMonth) leavesTakenThisMonth++;
+                    if (recordDate.getMonth() === currentMonth) leavesTakenThisMonth++;
                 }
             }
         });
@@ -210,15 +234,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return { workingDaysThisMonth, daysAttended, daysMissed, leavesTakenThisMonth, leavesTakenThisYear, leavesRemaining, attendance };
     }
     
-    function showAttendanceModal(username, attendance) {
-        // ... (Modal logic updated to show time for both present and absent)
-    }
+    // --- All other functions (login, password, modals, etc.) ---
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        // ... (Full function code)
+    });
+
+    createPasswordForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        // ... (Full function code)
+    });
     
-    // --- All other existing functions (login, password, modals, etc.) ---
-    // (This is a simplified representation to keep the response clean)
-    // --- LOGIN FORM, CREATE PASSWORD, FORGOT PASSWORD
-    // --- LEAVE REQUEST LOGIC
-    // --- LOGOUT & MODAL CLOSE
-    // --- PAGE DISPLAY FUNCTIONS
-    // --- ADMIN DASHBOARD & LEAVE MANAGEMENT
+    // ... all other functions and event listeners ...
 });
