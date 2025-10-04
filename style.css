@@ -55,6 +55,9 @@ th, td { padding: 12px 15px; border: 1px solid #ddd; text-align: left; white-spa
 th { background-color: #007bff; color: white; }
 #dashboard-body tr:hover { background-color: #cce5ff; cursor: pointer; }
 .missed-days-cell { background-color: #a8d5ff; color: #003d7e; font-weight: bold; }
+.status-present { color: #007bff; font-weight: bold; }
+.status-absent { color: #004a99; font-weight: bold; }
+.status-unmarked { color: #5a6268; font-style: italic; }
 .stats-box { background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; text-align: left; }
 .stats-box ul, .stats-box ol { padding-left: 20px; margin: 0; }
 .stats-box li { margin-bottom: 8px; }
