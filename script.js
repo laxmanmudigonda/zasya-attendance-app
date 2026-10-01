@@ -1,27 +1,37 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-    const firebaseConfig = {
-        apiKey: "AIzaSyBUA2TgF-R61y65hYkc1iGl98XkJjn92zs",
-        authDomain: "zasya-attendance-app.firebaseapp.com",
-        projectId: "zasya-attendance-app",
-        storageBucket: "zasya-attendance-app.firebasestorage.app",
-        messagingSenderId: "120093727111",
-        appId: "1:120093727111:web:9d4f4be7039ffe3bf15b22",
-        measurementId: "G-CCZ025JE5C"
-};
+    const loginError = document.getElementById('login-error');
+    if (typeof firebase === 'undefined') {
+        loginError.textContent = 'The application could not load Firebase. Check your internet connection and reload the page.';
+        return;
+    }
+
+    if (!window.APP_CONFIG) {
+        loginError.textContent = 'The application configuration is missing. Contact the administrator.';
+        return;
+    }
+
+    const { firebase: firebaseConfig, company, sessionDurationMinutes } = window.APP_CONFIG;
 
     // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.firestore();
+    let auth;
+    let db;
+    try {
+        firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        db = firebase.firestore();
+    } catch (error) {
+        console.error('Firebase initialization failed:', error);
+        loginError.textContent = 'The attendance service could not start. Please reload the page or contact the administrator.';
+        return;
+    }
 
     // --- USER LISTS & CONFIG ---
-    const adminUser = { name: "Varaprasad Mudigonda", role: "CEO" };
-    const validEmployees = ["Divyansh Kushwah", "Manish Nimkhede", "Nikhil Khiyani", "Nikhil Patil", "Sawari Maheswari", "Suhas Ambeti", "Laxman Mudigonda"];
-    const validInterns = ["Yashweer Potelu", "Akshith Varma", "Hari krishna", "Keerthan Modem", "Mithil Pollipalli", "Aryan Mansuke", "Vaishak Kundhavan", "Anuj Arya"];
-    const yearlyPaidLeaves = 8;
-    const nationalHolidays = ["01-01", "01-26", "08-15", "10-02"];
+    const adminUser = company.admin;
+    const validEmployees = company.employees;
+    const validInterns = company.interns;
+    const yearlyPaidLeaves = company.yearlyPaidLeaves;
+    const nationalHolidays = company.nationalHolidays;
 
     // --- GETTING HTML ELEMENTS ---
     const loginContainer = document.getElementById('login-container');
@@ -37,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const forgotPasswordForm = document.getElementById('forgot-password-form');
     const leaveRequestForm = document.getElementById('leave-request-form');
     const forgotPasswordLink = document.getElementById('forgot-password-link');
+    const backToLoginButton = document.getElementById('back-to-login-btn');
     const presentButton = document.getElementById('present-btn');
     const absentButton = document.getElementById('absent-btn');
     const ceoPresentButton = document.getElementById('ceo-present-btn');
@@ -48,11 +59,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentUser = null; 
     let currentUsername = null; 
+    let isCreatingAccount = false;
+    let unsubscribeLeaveRequests = null;
 
     // --- SESSION TIMEOUT (FIXED) ---
     let sessionTimerInterval;
     let timeLeft;
-    const sessionDurationMinutes = 10;
 
     const stopSessionTimer = () => {
         clearInterval(sessionTimerInterval);
@@ -94,29 +106,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- HELPER FUNCTIONS ---
-    const getFormattedDate = (date) => date.toISOString().slice(0, 10);
-    const nameToEmail = (name) => `${name.toLowerCase().replace(/\s+/g, '')}@zasya.online`;
+    const getFormattedDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+    const parseLocalDate = (dateString) => {
+        const [year, month, day] = dateString.split('-').map(Number);
+        return new Date(year, month - 1, day);
+    };
+    const nameToEmail = (name) => `${name.trim().toLowerCase().replace(/\s+/g, '')}@${company.emailDomain}`;
+    const isAdminUser = (user, name) => user.email === nameToEmail(adminUser.name) && name === adminUser.name;
+
+    const showServiceError = (message) => {
+        showLoginPage();
+        loginError.textContent = message;
+    };
+
+    const routeAuthenticatedUser = async (user) => {
+        currentUser = user;
+        const userDoc = await db.collection('users').doc(user.uid).get();
+        if (!userDoc.exists) {
+            throw new Error('Your account exists, but its employee profile is missing. Please contact the administrator.');
+        }
+
+        currentUsername = userDoc.data().name;
+        if (isAdminUser(user, currentUsername)) {
+            const today = getFormattedDate(new Date());
+            const attendanceToday = userDoc.data().attendance?.[today];
+            attendanceToday ? showAdminPanel() : showCeoAttendancePage();
+        } else {
+            showAttendancePage();
+        }
+    };
 
     // --- AUTHENTICATION & ROUTING ---
     auth.onAuthStateChanged(async user => {
+        if (isCreatingAccount) return;
         if (user) {
-            currentUser = user;
-            const userDoc = await db.collection('users').doc(user.uid).get();
-            if (userDoc.exists) {
-                currentUsername = userDoc.data().name;
-                // Admin/CEO specific logic
-                if (currentUsername === adminUser.name) {
-                    const today = getFormattedDate(new Date());
-                    const attendanceToday = userDoc.data().attendance?.[today];
-                    if (attendanceToday) {
-                        showAdminPanel();
-                    } else {
-                        showCeoAttendancePage();
-                    }
-                } else {
-                    showAttendancePage();
-                }
-            } else { auth.signOut(); }
+            try {
+                await routeAuthenticatedUser(user);
+            } catch (error) {
+                console.error('Could not load the signed-in user:', error);
+                currentUser = null;
+                currentUsername = null;
+                await auth.signOut();
+                showServiceError(error.message || 'Could not load your profile. Please try again.');
+            }
         } else {
             currentUser = null;
             currentUsername = null;
@@ -127,14 +164,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LOGIN, PASSWORD CREATION, FORGOT PASSWORD ---
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const usernameInput = document.getElementById('username').value;
+        const usernameInput = document.getElementById('username').value.trim();
         const passwordInput = document.getElementById('password').value;
-        const loginError = document.getElementById('login-error');
         loginError.textContent = '';
         if (!passwordInput) { showCreatePasswordPage(); return; }
         const email = usernameInput.includes('@') ? usernameInput : nameToEmail(usernameInput);
         try { await auth.signInWithEmailAndPassword(email, passwordInput); }
-        catch (error) { loginError.textContent = 'Incorrect password or user does not exist.'; }
+        catch (error) {
+            console.error('Login failed:', error);
+            loginError.textContent = error.code === 'auth/network-request-failed'
+                ? 'Unable to reach the attendance service. Check your internet connection.'
+                : 'Incorrect password or user does not exist.';
+        }
     });
 
     createPasswordForm.addEventListener('submit', async (e) => {
@@ -145,10 +186,23 @@ document.addEventListener('DOMContentLoaded', () => {
         errorEl.textContent = '';
         if (newPassword.length < 6) { errorEl.textContent = 'Password must be at least 6 characters.'; return; }
         if (newPassword !== confirmPassword) { errorEl.textContent = 'Passwords do not match.'; return; }
+        isCreatingAccount = true;
         try {
             const userCredential = await auth.createUserWithEmailAndPassword(currentUsername.email, newPassword);
             await db.collection('users').doc(userCredential.user.uid).set({ name: currentUsername.name, email: currentUsername.email, role: currentUsername.role });
-        } catch (error) { errorEl.textContent = error.message; }
+            isCreatingAccount = false;
+            await routeAuthenticatedUser(userCredential.user);
+        } catch (error) {
+            isCreatingAccount = false;
+            console.error('Account creation failed:', error);
+            if (error.code === 'auth/email-already-in-use') {
+                errorEl.textContent = 'This user already has a password. Return to login or use Forgot Password.';
+            } else if (error.code === 'permission-denied') {
+                errorEl.textContent = 'The account was created, but the employee profile could not be saved. Contact the administrator.';
+            } else {
+                errorEl.textContent = error.message || 'Could not create the account. Please try again.';
+            }
+        }
     });
     
     forgotPasswordLink.addEventListener('click', (e) => {
@@ -157,6 +211,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('reset-message').textContent = '';
         forgotPasswordForm.reset();
     });
+
+    backToLoginButton.addEventListener('click', showLoginPage);
 
     forgotPasswordForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -236,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const userRef = db.collection('users').doc(currentUser.uid);
         try {
-            await userRef.set({ attendance: { [formattedDate]: attendanceData } }, { merge: true });
+            await userRef.update({ [`attendance.${formattedDate}`]: attendanceData });
             const statusMessage = document.getElementById(elementId);
             statusMessage.textContent = status === "Present" 
                 ? `✅ Attendance Marked: PRESENT at ${formattedTime}.` 
@@ -244,11 +300,16 @@ document.addEventListener('DOMContentLoaded', () => {
             statusMessage.style.color = status === "Present" ? 'green' : 'red';
             
             // If CEO marks attendance, proceed to admin panel
-            if(currentUsername === adminUser.name) {
+            if (isAdminUser(currentUser, currentUsername)) {
                 setTimeout(showAdminPanel, 1500);
             }
 
-        } catch (error) { console.error("Error writing attendance: ", error); }
+        } catch (error) {
+            console.error('Error writing attendance:', error);
+            const statusMessage = document.getElementById(elementId);
+            statusMessage.textContent = 'Attendance could not be saved. Check your connection and try again.';
+            statusMessage.style.color = 'red';
+        }
     };
 
     presentButton.addEventListener('click', () => markAttendance("Present", 'status-message'));
@@ -261,18 +322,20 @@ document.addEventListener('DOMContentLoaded', () => {
         [attendanceContainer, createPasswordContainer, adminPanelContainer, ceoAttendanceContainer, attendanceModal, forgotPasswordModal, leaveRequestModal].forEach(c => c.style.display = 'none');
         loginContainer.style.display = 'block';
         loginForm.reset();
+        if (unsubscribeLeaveRequests) {
+            unsubscribeLeaveRequests();
+            unsubscribeLeaveRequests = null;
+        }
         stopSessionTimer(); // Make sure timer is stopped on logout
     }
     
-    async function showCreatePasswordPage() {
-        const usernameInput = document.getElementById('username').value;
+    function showCreatePasswordPage() {
+        const usernameInput = document.getElementById('username').value.trim();
         const allUsers = [{name: adminUser.name, role: adminUser.role}, ...validEmployees.map(n => ({name: n, role: 'Employee'})), ...validInterns.map(n => ({name: n, role: 'Intern'}))];
         const normalizedInput = usernameInput.toLowerCase().replace(/\s+/g, '');
         const validUser = allUsers.find(u => u.name.toLowerCase().replace(/\s+/g, '') === normalizedInput);
         if (!validUser) { document.getElementById('login-error').textContent = 'This user is not in the company list.'; return; }
         const userEmail = nameToEmail(validUser.name);
-        const userCheck = await db.collection('users').where("email", "==", userEmail).get();
-        if(!userCheck.empty){ document.getElementById('login-error').textContent = 'This user already has a password. Please log in.'; return; }
         currentUsername = {name: validUser.name, email: userEmail, role: validUser.role};
         [loginContainer, attendanceContainer, adminPanelContainer, ceoAttendanceContainer].forEach(c => c.style.display = 'none');
         createPasswordContainer.style.display = 'block';
@@ -311,7 +374,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadLeaveRequests() {
         const requestsBody = document.getElementById('leave-requests-body');
-        db.collection('leave-requests').where('status', '==', 'pending').onSnapshot(snapshot => {
+        if (unsubscribeLeaveRequests) unsubscribeLeaveRequests();
+        unsubscribeLeaveRequests = db.collection('leave-requests').where('status', '==', 'pending').onSnapshot(snapshot => {
             if (snapshot.empty) {
                 requestsBody.innerHTML = '<tr><td colspan="4">No pending leave requests.</td></tr>';
                 return;
@@ -320,13 +384,29 @@ document.addEventListener('DOMContentLoaded', () => {
             snapshot.forEach(doc => {
                 const request = doc.data();
                 const row = document.createElement('tr');
-                row.innerHTML = `<td>${request.date}</td><td>${request.userName}</td><td>${request.reason}</td>
-                                <td>
-                                    <button class="action-btn approve-btn" data-id="${doc.id}" data-user-id="${request.userId}" data-date="${request.date}">Approve</button>
-                                    <button class="action-btn deny-btn" data-id="${doc.id}">Deny</button>
-                                </td>`;
+                [request.date, request.userName, request.reason].forEach(value => {
+                    const cell = document.createElement('td');
+                    cell.textContent = value || '';
+                    row.appendChild(cell);
+                });
+                const actions = document.createElement('td');
+                const approveButton = document.createElement('button');
+                approveButton.className = 'action-btn approve-btn';
+                approveButton.dataset.id = doc.id;
+                approveButton.dataset.userId = request.userId;
+                approveButton.dataset.date = request.date;
+                approveButton.textContent = 'Approve';
+                const denyButton = document.createElement('button');
+                denyButton.className = 'action-btn deny-btn';
+                denyButton.dataset.id = doc.id;
+                denyButton.textContent = 'Deny';
+                actions.append(approveButton, denyButton);
+                row.appendChild(actions);
                 requestsBody.appendChild(row);
             });
+        }, error => {
+            console.error('Could not load leave requests:', error);
+            requestsBody.innerHTML = '<tr><td colspan="4">Could not load leave requests.</td></tr>';
         });
     }
 
@@ -335,17 +415,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const requestId = target.dataset.id;
         if (!requestId) return;
         const leaveRequestRef = db.collection('leave-requests').doc(requestId);
-        if (target.classList.contains('approve-btn')) {
-            const userId = target.dataset.userId;
-            const leaveDate = target.dataset.date;
-            const userRef = db.collection('users').doc(userId);
-            // Approved leave is marked as 'Absent' with a default time
-            const attendanceData = { status: 'Absent', time: 'Approved' };
-            await userRef.set({ attendance: { [leaveDate]: attendanceData } }, { merge: true });
-            await leaveRequestRef.update({ status: 'approved' });
-            generateDashboard(); // Refresh dashboard to reflect changes
-        } else if (target.classList.contains('deny-btn')) {
-            await leaveRequestRef.update({ status: 'denied' });
+        target.disabled = true;
+        try {
+            if (target.classList.contains('approve-btn')) {
+                const userId = target.dataset.userId;
+                const leaveDate = target.dataset.date;
+                const batch = db.batch();
+                batch.update(db.collection('users').doc(userId), { [`attendance.${leaveDate}`]: { status: 'Absent', time: 'Approved' } });
+                batch.update(leaveRequestRef, { status: 'approved' });
+                await batch.commit();
+                generateDashboard();
+            } else if (target.classList.contains('deny-btn')) {
+                await leaveRequestRef.update({ status: 'denied' });
+            }
+        } catch (error) {
+            console.error('Could not process leave request:', error);
+            target.disabled = false;
+            alert('The leave request could not be updated. Please try again.');
         }
     });
 
@@ -353,30 +439,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const dashboardBody = document.getElementById('dashboard-body');
         dashboardBody.innerHTML = '<tr><td colspan="8">Loading dashboard...</td></tr>';
         const allUsers = [{ name: adminUser.name, role: adminUser.role }, ...validEmployees.map(n => ({ name: n, role: 'Employee' })), ...validInterns.map(n => ({ name: n, role: 'Intern' }))];
-        
-        let tableHTML = '';
-        let onLeaveTodayCount = 0;
-        const todayFormatted = getFormattedDate(new Date());
+        try {
+            const usersWithStats = await Promise.all(allUsers.map(async user => ({
+                ...user,
+                stats: await calculateAttendanceStats(user.name)
+            })));
+            const todayFormatted = getFormattedDate(new Date());
+            let onLeaveTodayCount = 0;
 
-        for (const user of allUsers) {
-            const stats = await calculateAttendanceStats(user.name);
-
-            // Check if user is on leave today
-            if (stats.attendance[todayFormatted]?.status === 'Absent') {
-                onLeaveTodayCount++;
-            }
-
-            // Get today's punch-in time if available
-            let punchInTime = '---';
-            const todaysRecord = stats.attendance[todayFormatted];
-            if (todaysRecord && todaysRecord.status === 'Present') {
-                punchInTime = todaysRecord.time;
-            }
-
-
-            const rowClass = user.role === 'CEO' ? ' class="ceo-row"' : '';
-            const missedDaysCell = stats.daysMissed > 0 ? `<td class="missed-days-cell">${stats.daysMissed}</td>` : `<td>${stats.daysMissed}</td>`;
-            tableHTML += `<tr data-username="${user.name}"${rowClass}>
+            const tableHTML = usersWithStats.map(user => {
+                const { stats } = user;
+                if (stats.attendance[todayFormatted]?.status === 'Absent') onLeaveTodayCount++;
+                const todaysRecord = stats.attendance[todayFormatted];
+                const punchInTime = todaysRecord?.status === 'Present' ? todaysRecord.time : '---';
+                const rowClass = user.role === 'CEO' ? ' class="ceo-row"' : '';
+                const missedDaysCell = stats.daysMissed > 0 ? `<td class="missed-days-cell">${stats.daysMissed}</td>` : `<td>${stats.daysMissed}</td>`;
+                return `<tr data-username="${user.name}"${rowClass}>
                             <td>${user.name}</td>
                             <td>${user.role}</td>
                             <td>${stats.workingDaysThisMonth}</td>
@@ -385,19 +463,23 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${missedDaysCell}
                             <td>${stats.leavesTakenThisYear}</td>
                             <td>${stats.leavesRemaining}</td>
-                         </tr>`;
-        }
-        dashboardBody.innerHTML = tableHTML;
-        document.getElementById('daily-leave-count').textContent = onLeaveTodayCount;
+                        </tr>`;
+            }).join('');
 
-        dashboardBody.querySelectorAll('tr').forEach(row => {
-            row.addEventListener('click', async () => {
-                const username = row.dataset.username;
-                if (!username) return;
-                const stats = await calculateAttendanceStats(username);
-                showAttendanceModal(username, stats.attendance);
+            dashboardBody.innerHTML = tableHTML;
+            document.getElementById('daily-leave-count').textContent = onLeaveTodayCount;
+            dashboardBody.querySelectorAll('tr').forEach(row => {
+                row.addEventListener('click', async () => {
+                    const username = row.dataset.username;
+                    if (!username) return;
+                    const stats = await calculateAttendanceStats(username);
+                    showAttendanceModal(username, stats.attendance);
+                });
             });
-        });
+        } catch (error) {
+            console.error('Could not generate dashboard:', error);
+            dashboardBody.innerHTML = '<tr><td colspan="8">Could not load the dashboard. Check Firestore access and try again.</td></tr>';
+        }
     }
 
     async function calculateAttendanceStats(username) {
@@ -429,8 +511,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         Object.keys(attendance).forEach(dateStr => {
-            if (new Date(dateStr).getFullYear() === currentYear && attendance[dateStr]?.status === 'Absent') {
-                const dayOfWeek = new Date(dateStr).getDay();
+            const recordDate = parseLocalDate(dateStr);
+            if (recordDate.getFullYear() === currentYear && attendance[dateStr]?.status === 'Absent') {
+                const dayOfWeek = recordDate.getDay();
                 const formattedDateMMDD = dateStr.substring(5);
                 if(dayOfWeek !== 0 && !nationalHolidays.includes(formattedDateMMDD)){
                     leavesTakenThisYear++;

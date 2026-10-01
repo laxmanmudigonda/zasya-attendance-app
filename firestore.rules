@@ -1,0 +1,61 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isApprovedUser() {
+      return signedIn() && request.auth.token.email in [
+        'varaprasadmudigonda@zasya.online',
+        'divyanshkushwah@zasya.online',
+        'manishnimkhede@zasya.online',
+        'nikhilkhiyani@zasya.online',
+        'nikhilpatil@zasya.online',
+        'sawarimaheswari@zasya.online',
+        'suhasambeti@zasya.online',
+        'laxmanmudigonda@zasya.online',
+        'yashweerpotelu@zasya.online',
+        'akshithvarma@zasya.online',
+        'harikrishna@zasya.online',
+        'keerthanmodem@zasya.online',
+        'mithilpollipalli@zasya.online',
+        'aryanmansuke@zasya.online',
+        'vaishakkundhavan@zasya.online',
+        'anujarya@zasya.online'
+      ];
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.email == 'varaprasadmudigonda@zasya.online';
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow create: if isOwner(userId)
+        && isApprovedUser()
+        && request.resource.data.email == request.auth.token.email;
+
+      allow read: if isOwner(userId) || isAdmin();
+
+      allow update: if isAdmin() || (
+        isOwner(userId)
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.role == resource.data.role
+      );
+    }
+
+    match /leave-requests/{requestId} {
+      allow create: if isApprovedUser()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending';
+
+      allow read, update: if isAdmin();
+    }
+  }
+}

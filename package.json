@@ -1,0 +1,16 @@
+{
+  "name": "zasya-attendance-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Firebase-powered attendance and leave management for Zasya employees and interns.",
+  "scripts": {
+    "check": "node --check config.js && node --check script.js && node scripts/validate.js",
+    "dev": "npx firebase-tools emulators:start --only hosting",
+    "deploy:rules": "npx firebase-tools deploy --only firestore:rules",
+    "deploy:hosting": "npx firebase-tools deploy --only hosting",
+    "deploy": "npx firebase-tools deploy --only firestore:rules,hosting"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

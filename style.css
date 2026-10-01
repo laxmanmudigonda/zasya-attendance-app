@@ -53,11 +53,13 @@ textarea { resize: vertical; }
 /* Buttons */
 button { background-color: #007bff; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-size: 1em; cursor: pointer; transition: background-color 0.3s ease; width: 100%; }
 button:hover { background-color: #0056b3; }
+button:disabled { cursor: not-allowed; opacity: 0.65; }
 .button-group { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .button-group button { width: auto; flex-grow: 1; }
 .logout-button { position: absolute; top: 15px; right: 15px; background-color: #007bff; padding: 8px 12px; font-size: 0.9em; width: auto; }
 .secondary-btn { background-color: #6c757d; }
 .secondary-btn:hover { background-color: #5a6268; }
+.form-secondary-button { margin-top: 10px; }
 .action-btn { width: auto; padding: 5px 10px; font-size: 0.9em; margin: 0 5px; }
 .approve-btn { background-color: #28a745; }
 .approve-btn:hover { background-color: #218838; }

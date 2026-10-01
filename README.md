@@ -1,84 +1,198 @@
-Zasya Attendance Application
-A simple, modern web application for Zasya employees and interns to mark their daily attendance. The application features a secure login system and a dedicated admin panel for management to view comprehensive attendance reports.
+# Zasya Attendance
 
-✨ Features
-User Authentication: Secure login system for all personnel.
+![Zasya logo](logo.png)
 
-First-time users are prompted to create a secure password.
+Zasya Attendance is a browser-based attendance and leave-management application for Zasya employees and interns. It uses Firebase Authentication for user accounts, Cloud Firestore for attendance data, and Firebase Hosting for deployment.
 
-"Forgot Password" functionality allows users to reset their password via email.
+The application has no custom server. The browser communicates directly with Firebase, while Firestore Security Rules enforce access to employee and administrative data.
 
-Daily Attendance Marking: Simple interface for employees and interns to mark themselves as "Present" or "Absent".
+## Features
 
-Admin Dashboard: A private dashboard accessible only to the CEO (Varaprasad Mudigonda).
+- Email and password authentication using a company-name login format.
+- First-time password creation for configured employees and interns.
+- Password-reset emails through Firebase Authentication.
+- Daily Present or Absent attendance marking with punch-in time.
+- Leave requests with a date and optional reason.
+- A ten-minute inactivity timeout for authenticated sessions.
+- CEO attendance confirmation before opening the admin dashboard.
+- Monthly attendance totals, missed days, annual leave usage, and remaining leave.
+- A per-user monthly calendar with attendance details.
+- Administrative approval or denial of pending leave requests.
+- Responsive layout for desktop and mobile browsers.
 
-Comprehensive Reporting: The admin dashboard provides a summary of:
+## How the application works
 
-Total working days in the current month.
+Each configured person's email is generated from their name by removing spaces and appending `@zasya.online`. For example, `Laxman Mudigonda` becomes `laxmanmudigonda@zasya.online`.
 
-Number of days each person was present.
+Firebase Authentication owns the login credential. The matching document in `users/{uid}` stores the employee's name, email, role, and an attendance map indexed by local calendar date. Leave applications are stored as separate documents in the `leave-requests` collection.
 
-Days Missed: Highlights working days where a user did not mark their attendance.
+The CEO account is identified by both its configured name and authenticated email. Firestore rules separately enforce administrative access on the Firebase side.
 
-Total paid leaves taken in the current year.
+## Project structure
 
-Remaining paid leaves for the year.
+- `index.html` contains the login, attendance, admin, calendar, password-reset, and leave-request interfaces.
+- `style.css` defines the responsive presentation.
+- `config.js` is the central source for Firebase settings, personnel, holidays, leave allowance, and session duration.
+- `script.js` contains authentication, attendance, leave, session, and dashboard behavior.
+- `firestore.rules` restricts Firestore data to approved accounts and administrative operations.
+- `firebase.json` configures Firestore rules and Firebase Hosting.
+- `.firebaserc` selects the Firebase project.
+- `scripts/validate.js` checks project structure, configuration consistency, and HTML/JavaScript wiring.
 
-Detailed Monthly View: The admin can click on any user in the dashboard to see a full calendar view of their attendance for the current month.
+## Requirements
 
-💻 Technology Stack
-Frontend: HTML5, CSS3, JavaScript (ES6+)
+- Node.js 20 or newer.
+- A Firebase account with access to the `zasya-attendance-app` project.
+- Email/Password sign-in enabled in Firebase Authentication.
+- A Cloud Firestore database in Native mode.
 
-Backend: Google Firebase
+The Firebase CLI is run through `npx`, so a global installation is optional.
 
-Firebase Authentication: For managing user accounts, logins, and password resets.
+## Local setup
 
-Cloud Firestore: A NoSQL database used to store all user and attendance data in real-time.
+Clone the repository and enter the project directory:
 
-Deployment: Can be hosted on any static web hosting service (e.g., Netlify, GitHub Pages).
+```bash
+git clone https://github.com/laxmanmudigonda/zasya-attendance-app.git
+cd zasya-attendance-app
+```
 
-🚀 Setup and Installation
-To get this project running on your local machine, follow these steps.
+Validate the project:
 
-1. Prerequisites
-A modern web browser (like Chrome or Firefox).
+```bash
+npm run check
+```
 
-A code editor (like Visual Studio Code).
+Sign in to Firebase when setting up a new development machine:
 
-The Live Server extension for VS Code is highly recommended for local development.
+```bash
+npx firebase-tools login
+```
 
-2. Firebase Setup
-This application requires a Firebase project to handle the backend.
+Deploy the Firestore rules:
 
-Create a Firebase Project: Go to the Firebase Console and create a new project.
+```bash
+npm run deploy:rules
+```
 
-Add a Web App: In your project dashboard, add a new web application to get your unique configuration keys.
+Start the local Firebase Hosting emulator:
 
-Enable Authentication: Go to the Authentication tab, click "Get started," and enable the Email/Password sign-in provider.
+```bash
+npm run dev
+```
 
-Authorize Domain: In Authentication settings, add 127.0.0.1 to the list of authorized domains for local testing.
+Open the local URL printed by the Firebase CLI. Do not open `index.html` directly through a `file://` URL.
 
-Create Firestore Database: Go to the Firestore Database tab and create a new database. Start in test mode for initial setup.
+## Firebase configuration
 
-Enable APIs: Ensure both the Identity Toolkit API and the Cloud Firestore API are enabled in your Google Cloud project settings.
+### Authentication
 
-3. Project Configuration
-Clone the Repository or download the project files.
+In Firebase Console, open Authentication and enable the Email/Password provider.
 
-Add Firebase Config: Open the script.js file. At the top, you will find a firebaseConfig object. Paste your unique keys from the Firebase console here.
+Under Authentication settings, add every hostname used to serve the app to Authorized domains. Local development commonly uses `localhost` or `127.0.0.1`. Production uses the Firebase Hosting domain or the application's custom domain.
 
-4. Running Locally
-Open the project folder in Visual Studio Code.
+### Firestore
 
-Right-click on the index.html file and select "Open with Live Server," or click the "Go Live" button in the bottom-right corner.
+The repository includes rules that support the application's current data flows:
 
-The application will open in your browser at an address like http://127.0.0.1:5500.
+- Approved employees may create, read, and update their own profile.
+- Employees may submit leave requests for their own authenticated user ID.
+- Only the configured CEO email may read all profiles or process leave requests.
+- Public and unapproved-account access is denied.
 
-🌐 Deployment
-This app can be deployed to any static hosting service. The easiest way is with Netlify:
+Deploy rule changes with `npm run deploy:rules`. Rules maintained only in Firebase Console can be overwritten by a CLI deployment, so keep the repository version authoritative.
 
-Log in to your Netlify account.
+### Application settings
 
-Drag and drop your project folder (containing index.html, style.css, script.js, and logo.png) into the deployment area.
+Edit `config.js` to change:
 
-Netlify will provide you with a live URL for your application.
+- Firebase web-app identifiers.
+- Company email domain.
+- CEO name and role.
+- Employee and intern lists.
+- Annual paid-leave allowance.
+- National holidays.
+- Session timeout duration.
+
+When adding or removing personnel, update the email allowlist in `firestore.rules` as well. `npm run check` detects configured people who are missing from the rules.
+
+Firebase web configuration values identify the Firebase project; they are not server credentials. Access control belongs in Authentication, Firestore Security Rules, and optional Firebase App Check enforcement.
+
+## Data model
+
+A user document follows this shape:
+
+```text
+users/{uid}
+  name: "Laxman Mudigonda"
+  email: "laxmanmudigonda@zasya.online"
+  role: "Employee"
+  attendance:
+    2026-10-01:
+      status: "Present"
+      time: "09:30 AM"
+```
+
+A leave request follows this shape:
+
+```text
+leave-requests/{requestId}
+  userId: "firebase-auth-uid"
+  userName: "Laxman Mudigonda"
+  date: "2026-10-10"
+  reason: "Personal work"
+  status: "pending"
+```
+
+Approving a leave request atomically changes its status to `approved` and writes an Absent record for the requested date.
+
+## Available commands
+
+- `npm run check` checks JavaScript syntax and validates project configuration.
+- `npm run dev` starts the Firebase Hosting emulator.
+- `npm run deploy:rules` deploys only Firestore Security Rules.
+- `npm run deploy:hosting` deploys only the website.
+- `npm run deploy` deploys both the rules and website.
+
+## Deployment
+
+Run validation before every deployment:
+
+```bash
+npm run check
+npm run deploy
+```
+
+Firebase Hosting publishes only the browser assets. Documentation, rules, local Firebase data, Git files, and development scripts are excluded by `firebase.json`.
+
+## Troubleshooting
+
+### The login page appears, but login fails
+
+Confirm that Email/Password authentication is enabled, the account exists, and the current hostname is in Authorized domains. Network failures and credential failures are displayed separately in the login form.
+
+### A first-time user cannot create a password
+
+Confirm that the person's name exists in `config.js`, their generated email is listed in `firestore.rules`, and the latest rules are deployed. If Authentication already contains that email, use the normal login or password-reset flow.
+
+### Attendance or leave requests cannot be saved
+
+Deploy the current rules with `npm run deploy:rules`, confirm the signed-in user's Firestore profile has the same email as their Authentication account, and inspect the browser console for the Firebase error code.
+
+### The admin dashboard does not load
+
+The authenticated account must use the configured CEO email and its profile name must match the configured CEO name. The account also needs permission under the deployed Firestore rules.
+
+### Firebase libraries do not load
+
+The page loads Firebase from Google's CDN. Check the network connection, content blocker, corporate firewall, and browser console. The login page displays a startup error when the SDK is unavailable.
+
+## Security considerations
+
+The current first-time flow lets an unclaimed, allowlisted employee identity create its initial password. For use beyond a trusted internal rollout, pre-provision Authentication accounts or replace self-registration with an administrator-controlled invitation flow.
+
+Keep personnel changes synchronized between `config.js` and `firestore.rules`. Review and test rules before deployment because deploying the repository rules replaces the active Firestore ruleset.
+
+## License
+
+This project is distributed under the [MIT License](LICENSE).
